@@ -90,6 +90,21 @@ function calcularVencimentoVeiculo(veiculo: VeiculoSupabase): VencimentoInfo {
   }
 }
 
+function getDiasRelevantes(vencimento: VencimentoInfo): number {
+  const diasIPVA = vencimento.isentoIPVA || vencimento.statusIPVA === 'pago'
+    ? Infinity
+    : vencimento.diasParaIPVA ?? Infinity
+  const diasLicenciamento = vencimento.statusLicenciamento === 'pago'
+    ? Infinity
+    : vencimento.diasParaLicenciamento
+
+  return Math.min(diasIPVA, diasLicenciamento)
+}
+
+function todosPagamentosResolvidos(vencimento: VencimentoInfo): boolean {
+  return (vencimento.isentoIPVA || vencimento.statusIPVA === 'pago') && vencimento.statusLicenciamento === 'pago'
+}
+
 interface VeiculoCardCompletoProps {
   veiculo: VeiculoComVencimento
   isUpdating?: boolean
@@ -104,10 +119,8 @@ function VeiculoCardCompleto({ veiculo, isUpdating = false, onMarkAsPaid }: Veic
   const coresIPVA = getCorStatus(vencimento.statusIPVA)
   const coresLic = getCorStatus(vencimento.statusLicenciamento)
   
-  // Para carretas isentas de IPVA, considera apenas o licenciamento
-  const diasRelevantes = vencimento.isentoIPVA 
-    ? vencimento.diasParaLicenciamento 
-    : Math.min(vencimento.diasParaIPVA ?? Infinity, vencimento.diasParaLicenciamento)
+  const diasRelevantes = getDiasRelevantes(vencimento)
+  const pagamentosResolvidos = todosPagamentosResolvidos(vencimento)
 
   return (
     <Card className="hover:shadow-md transition-shadow">
@@ -134,13 +147,20 @@ function VeiculoCardCompleto({ veiculo, isUpdating = false, onMarkAsPaid }: Veic
           
           {/* Indicador de urgência */}
           <div className={`px-2 py-1 rounded-full text-xs font-medium ${
-            diasRelevantes < 0 
+            pagamentosResolvidos
+              ? 'bg-green-100 text-green-700'
+              : diasRelevantes < 0
               ? 'bg-red-100 text-red-700' 
               : diasRelevantes <= 30 
                 ? 'bg-amber-100 text-amber-700' 
                 : 'bg-green-100 text-green-700'
           }`}>
-            {diasRelevantes < 0 ? (
+            {pagamentosResolvidos ? (
+              <span className="flex items-center gap-1">
+                <CheckCircle2 className="h-3 w-3" />
+                Pago
+              </span>
+            ) : diasRelevantes < 0 ? (
               <span className="flex items-center gap-1">
                 <AlertTriangle className="h-3 w-3" />
                 Vencido
@@ -319,7 +339,7 @@ function App() {
   const [dragOverCol, setDragOverCol] = useState<string | null>(null)
   const [pendingDrop, setPendingDrop] = useState<{ id: string; placa: string; fromCol: string; toCol: string; campo: 'status_ipva' | 'status_licenciamento'; estado: string } | null>(null)
   const dragItemRef = useRef<{ id: string; fromCol: string } | null>(null)
-  const { veiculos, loading, error, refetch } = useVeiculos()
+  const { veiculos, loading, error, refetch, updateVeiculoLocal } = useVeiculos()
 
   // Resetar tab quando mudar de estado
   const handleViewChange = (view: ViewType) => {
@@ -402,18 +422,12 @@ function App() {
 
   // Ordenar veículos filtrados
   const veiculosOrdenados = useMemo(() => {
-    const getDiasRelevantes = (v: VeiculoComVencimento) => {
-      return v.vencimento.isentoIPVA 
-        ? v.vencimento.diasParaLicenciamento 
-        : Math.min(v.vencimento.diasParaIPVA ?? Infinity, v.vencimento.diasParaLicenciamento)
-    }
-    
     return [...veiculosFiltrados].sort((a, b) => {
       switch (ordenacao) {
         case 'vencimento-asc':
-          return getDiasRelevantes(a) - getDiasRelevantes(b)
+          return getDiasRelevantes(a.vencimento) - getDiasRelevantes(b.vencimento)
         case 'vencimento-desc':
-          return getDiasRelevantes(b) - getDiasRelevantes(a)
+          return getDiasRelevantes(b.vencimento) - getDiasRelevantes(a.vencimento)
         case 'placa-asc':
           return a.placa_veiculo.localeCompare(b.placa_veiculo)
         case 'placa-desc':
@@ -448,9 +462,7 @@ function App() {
       counts[estado].total++
       
       // Determinar dias relevantes (menor entre IPVA e Licenciamento)
-      const diasRelevantes = v.vencimento.isentoIPVA 
-        ? v.vencimento.diasParaLicenciamento 
-        : Math.min(v.vencimento.diasParaIPVA ?? Infinity, v.vencimento.diasParaLicenciamento)
+      const diasRelevantes = getDiasRelevantes(v.vencimento)
       
       if (diasRelevantes < 0) {
         counts[estado].vencidos++
@@ -651,21 +663,28 @@ function App() {
     try {
       // GO tem pagamento unificado: IPVA + Licenciamento juntos
       const veiculo = veiculos.find(v => v.id === id)
-      if (veiculo?.estado_veiculo === 'GO') {
+      if (!veiculo) return
+
+      if (veiculo.estado_veiculo === 'GO') {
         await Promise.all([
           veiculosService.updatePagamento(id, 'status_ipva', novoStatus),
           veiculosService.updatePagamento(id, 'status_licenciamento', novoStatus),
         ])
+        updateVeiculoLocal({
+          ...veiculo,
+          status_ipva: novoStatus,
+          status_licenciamento: novoStatus,
+        })
       } else {
-        await veiculosService.updatePagamento(id, campo, novoStatus)
+        const veiculoAtualizado = await veiculosService.updatePagamento(id, campo, novoStatus)
+        updateVeiculoLocal(veiculoAtualizado)
       }
-      await refetch()
     } catch (err) {
       console.error('Erro ao mover veículo:', err)
     } finally {
       setKanbanUpdatingId(null)
     }
-  }, [refetch, veiculos])
+  }, [updateVeiculoLocal, veiculos])
 
   const handleCardMarkAsPaid = useCallback((id: string, campo: 'status_ipva' | 'status_licenciamento') => {
     void handleMovePagamento(id, campo, 'pago')
@@ -1410,9 +1429,7 @@ function App() {
           const veiculosFiltradosPorTab = veiculosDoEstado.filter(v => {
             if (estadoTab === 'todos') return true
             
-            const diasRelevantes = v.vencimento.isentoIPVA 
-              ? v.vencimento.diasParaLicenciamento 
-              : Math.min(v.vencimento.diasParaIPVA ?? Infinity, v.vencimento.diasParaLicenciamento)
+            const diasRelevantes = getDiasRelevantes(v.vencimento)
             
             if (estadoTab === 'vencidos') return diasRelevantes < 0
             if (estadoTab === 'proximos') return diasRelevantes >= 0 && diasRelevantes <= 30
@@ -1420,18 +1437,12 @@ function App() {
           })
           
           // Ordenar veículos do estado
-          const getDiasRelevantes = (v: VeiculoComVencimento) => {
-            return v.vencimento.isentoIPVA 
-              ? v.vencimento.diasParaLicenciamento 
-              : Math.min(v.vencimento.diasParaIPVA ?? Infinity, v.vencimento.diasParaLicenciamento)
-          }
-          
           const veiculosOrdenadosPorTab = [...veiculosFiltradosPorTab].sort((a, b) => {
             switch (ordenacao) {
               case 'vencimento-asc':
-                return getDiasRelevantes(a) - getDiasRelevantes(b)
+                return getDiasRelevantes(a.vencimento) - getDiasRelevantes(b.vencimento)
               case 'vencimento-desc':
-                return getDiasRelevantes(b) - getDiasRelevantes(a)
+                return getDiasRelevantes(b.vencimento) - getDiasRelevantes(a.vencimento)
               case 'placa-asc':
                 return a.placa_veiculo.localeCompare(b.placa_veiculo)
               case 'placa-desc':

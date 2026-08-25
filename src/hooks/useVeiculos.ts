@@ -7,6 +7,7 @@ interface UseVeiculosReturn {
   loading: boolean
   error: string | null
   refetch: () => Promise<void>
+  updateVeiculoLocal: (veiculo: VeiculoSupabase) => void
 }
 
 export function useVeiculos(): UseVeiculosReturn {
@@ -30,6 +31,12 @@ export function useVeiculos(): UseVeiculosReturn {
     }
   }, [])
 
+  const updateVeiculoLocal = useCallback((veiculoAtualizado: VeiculoSupabase) => {
+    setVeiculos(atual => atual.map(veiculo => (
+      veiculo.id === veiculoAtualizado.id ? veiculoAtualizado : veiculo
+    )))
+  }, [])
+
   useEffect(() => {
     fetchVeiculos()
   }, [fetchVeiculos])
@@ -38,6 +45,7 @@ export function useVeiculos(): UseVeiculosReturn {
     veiculos,
     loading,
     error,
-    refetch: fetchVeiculos
+    refetch: fetchVeiculos,
+    updateVeiculoLocal
   }
 }

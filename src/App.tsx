@@ -74,7 +74,29 @@ interface VeiculoComVencimento extends VeiculoSupabase {
   vencimento: VencimentoInfo
 }
 
-function VeiculoCardCompleto({ veiculo }: { veiculo: VeiculoComVencimento }) {
+function calcularVencimentoVeiculo(veiculo: VeiculoSupabase): VencimentoInfo {
+  const vencimento = calcularVencimentos(veiculo.estado_veiculo, veiculo.placa_veiculo, veiculo.tipo_veiculo)
+
+  return {
+    ...vencimento,
+    statusIPVA: vencimento.isentoIPVA
+      ? 'isento'
+      : veiculo.status_ipva === 'pago'
+        ? 'pago'
+        : vencimento.statusIPVA,
+    statusLicenciamento: veiculo.status_licenciamento === 'pago'
+      ? 'pago'
+      : vencimento.statusLicenciamento,
+  }
+}
+
+interface VeiculoCardCompletoProps {
+  veiculo: VeiculoComVencimento
+  isUpdating?: boolean
+  onMarkAsPaid: (id: string, campo: 'status_ipva' | 'status_licenciamento') => void
+}
+
+function VeiculoCardCompleto({ veiculo, isUpdating = false, onMarkAsPaid }: VeiculoCardCompletoProps) {
   const info = ESTADO_INFO[veiculo.estado_veiculo] || { nome: veiculo.estado_veiculo, cor: 'text-slate-700', bgColor: 'bg-slate-100' }
   const { vencimento } = veiculo
   const finalPlaca = getFinalPlaca(veiculo.placa_veiculo)
@@ -158,11 +180,24 @@ function VeiculoCardCompleto({ veiculo }: { veiculo: VeiculoComVencimento }) {
             ) : (
               <>
                 <p className={`text-sm font-bold ${coresIPVA.text}`}>
-                  {vencimento.dataIPVA ? formatarData(vencimento.dataIPVA) : '-'}
+                  {vencimento.statusIPVA === 'pago' ? 'PAGO' : vencimento.dataIPVA ? formatarData(vencimento.dataIPVA) : '-'}
                 </p>
-                <p className={`text-xs ${coresIPVA.text} opacity-75`}>
-                  {formatDiasRestantes(vencimento.diasParaIPVA)}
-                </p>
+                {vencimento.statusIPVA !== 'pago' && (
+                  <>
+                    <p className={`text-xs ${coresIPVA.text} opacity-75`}>
+                      {formatDiasRestantes(vencimento.diasParaIPVA)}
+                    </p>
+                    <button
+                      type="button"
+                      disabled={isUpdating}
+                      onClick={() => onMarkAsPaid(veiculo.id, 'status_ipva')}
+                      className="mt-2 w-full flex items-center justify-center gap-1 rounded-md bg-green-600 px-2 py-1 text-xs font-semibold text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {isUpdating ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
+                      Marcar como pago
+                    </button>
+                  </>
+                )}
               </>
             )}
           </div>
@@ -174,7 +209,7 @@ function VeiculoCardCompleto({ veiculo }: { veiculo: VeiculoComVencimento }) {
               <span className={`text-xs font-semibold ${coresLic.text}`}>Licenciamento</span>
             </div>
             <p className={`text-sm font-bold ${coresLic.text}`}>
-              {formatarData(vencimento.dataLicenciamento)}
+              {vencimento.statusLicenciamento === 'pago' ? 'PAGO' : formatarData(vencimento.dataLicenciamento)}
             </p>
             <p className={`text-xs ${coresLic.text} opacity-75`}>
               {formatDiasRestantes(vencimento.diasParaLicenciamento)}
@@ -182,6 +217,17 @@ function VeiculoCardCompleto({ veiculo }: { veiculo: VeiculoComVencimento }) {
                 <span className="ml-1">• R$ {vencimento.valorTaxaLicenciamento.toFixed(2)}</span>
               )}
             </p>
+            {vencimento.statusLicenciamento !== 'pago' && (
+              <button
+                type="button"
+                disabled={isUpdating}
+                onClick={() => onMarkAsPaid(veiculo.id, 'status_licenciamento')}
+                className="mt-2 w-full flex items-center justify-center gap-1 rounded-md bg-green-600 px-2 py-1 text-xs font-semibold text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isUpdating ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
+                Marcar como pago
+              </button>
+            )}
           </div>
         </div>
         
@@ -287,7 +333,7 @@ function App() {
       .filter(v => (v.status_veiculo || 'ativo') !== 'vendido')
       .map(v => ({
         ...v,
-        vencimento: calcularVencimentos(v.estado_veiculo, v.placa_veiculo, v.tipo_veiculo)
+        vencimento: calcularVencimentoVeiculo(v)
       }))
   }, [veiculos])
 
@@ -620,6 +666,10 @@ function App() {
       setKanbanUpdatingId(null)
     }
   }, [refetch, veiculos])
+
+  const handleCardMarkAsPaid = useCallback((id: string, campo: 'status_ipva' | 'status_licenciamento') => {
+    void handleMovePagamento(id, campo, 'pago')
+  }, [handleMovePagamento])
 
   const handleConfirmDrop = async () => {
     if (!pendingDrop) return
@@ -1335,7 +1385,12 @@ function App() {
             ) : (
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {veiculosOrdenados.map(veiculo => (
-                  <VeiculoCardCompleto key={veiculo.id} veiculo={veiculo} />
+                  <VeiculoCardCompleto
+                    key={veiculo.id}
+                    veiculo={veiculo}
+                    isUpdating={kanbanUpdatingId === veiculo.id}
+                    onMarkAsPaid={handleCardMarkAsPaid}
+                  />
                 ))}
               </div>
             )}
@@ -1479,7 +1534,12 @@ function App() {
               ) : (
                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                   {veiculosOrdenadosPorTab.map(veiculo => (
-                    <VeiculoCardCompleto key={veiculo.id} veiculo={veiculo} />
+                    <VeiculoCardCompleto
+                      key={veiculo.id}
+                      veiculo={veiculo}
+                      isUpdating={kanbanUpdatingId === veiculo.id}
+                      onMarkAsPaid={handleCardMarkAsPaid}
+                    />
                   ))}
                 </div>
               )}

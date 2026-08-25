@@ -101,6 +101,12 @@ function getDiasRelevantes(vencimento: VencimentoInfo): number {
   return Math.min(diasIPVA, diasLicenciamento)
 }
 
+function getDiasOrdenacao(vencimento: VencimentoInfo): number {
+  return vencimento.isentoIPVA
+    ? vencimento.diasParaLicenciamento
+    : Math.min(vencimento.diasParaIPVA ?? Infinity, vencimento.diasParaLicenciamento)
+}
+
 function todosPagamentosResolvidos(vencimento: VencimentoInfo): boolean {
   return (vencimento.isentoIPVA || vencimento.statusIPVA === 'pago') && vencimento.statusLicenciamento === 'pago'
 }
@@ -425,9 +431,9 @@ function App() {
     return [...veiculosFiltrados].sort((a, b) => {
       switch (ordenacao) {
         case 'vencimento-asc':
-          return getDiasRelevantes(a.vencimento) - getDiasRelevantes(b.vencimento)
+          return getDiasOrdenacao(a.vencimento) - getDiasOrdenacao(b.vencimento)
         case 'vencimento-desc':
-          return getDiasRelevantes(b.vencimento) - getDiasRelevantes(a.vencimento)
+          return getDiasOrdenacao(b.vencimento) - getDiasOrdenacao(a.vencimento)
         case 'placa-asc':
           return a.placa_veiculo.localeCompare(b.placa_veiculo)
         case 'placa-desc':
@@ -1440,9 +1446,9 @@ function App() {
           const veiculosOrdenadosPorTab = [...veiculosFiltradosPorTab].sort((a, b) => {
             switch (ordenacao) {
               case 'vencimento-asc':
-                return getDiasRelevantes(a.vencimento) - getDiasRelevantes(b.vencimento)
+                return getDiasOrdenacao(a.vencimento) - getDiasOrdenacao(b.vencimento)
               case 'vencimento-desc':
-                return getDiasRelevantes(b.vencimento) - getDiasRelevantes(a.vencimento)
+                return getDiasOrdenacao(b.vencimento) - getDiasOrdenacao(a.vencimento)
               case 'placa-asc':
                 return a.placa_veiculo.localeCompare(b.placa_veiculo)
               case 'placa-desc':

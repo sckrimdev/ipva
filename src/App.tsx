@@ -124,6 +124,7 @@ function VeiculoCardCompleto({ veiculo, isUpdating = false, onMarkAsPaid }: Veic
   
   const coresIPVA = getCorStatus(vencimento.statusIPVA)
   const coresLic = getCorStatus(vencimento.statusLicenciamento)
+  const possuiIPVA = veiculo.estado_veiculo !== 'SP'
   
   const diasRelevantes = getDiasRelevantes(vencimento)
   const pagamentosResolvidos = todosPagamentosResolvidos(vencimento)
@@ -191,9 +192,9 @@ function VeiculoCardCompleto({ veiculo, isUpdating = false, onMarkAsPaid }: Veic
         </div>
         
         {/* Vencimentos */}
-        <div className="grid grid-cols-2 gap-3 mt-4">
+        <div className={`grid gap-3 mt-4 ${possuiIPVA ? 'grid-cols-2' : 'grid-cols-1'}`}>
           {/* IPVA */}
-          <div className={`p-3 rounded-lg border ${coresIPVA.bg} ${coresIPVA.border}`}>
+          {possuiIPVA && <div className={`p-3 rounded-lg border ${coresIPVA.bg} ${coresIPVA.border}`}>
             <div className="flex items-center gap-1.5 mb-1">
               <FileText className={`h-3.5 w-3.5 ${coresIPVA.text}`} />
               <span className={`text-xs font-semibold ${coresIPVA.text}`}>IPVA</span>
@@ -226,7 +227,7 @@ function VeiculoCardCompleto({ veiculo, isUpdating = false, onMarkAsPaid }: Veic
                 )}
               </>
             )}
-          </div>
+          </div>}
           
           {/* Licenciamento */}
           <div className={`p-3 rounded-lg border ${coresLic.bg} ${coresLic.border}`}>
@@ -618,7 +619,7 @@ function App() {
               <div className="p-3 bg-white rounded-lg border">
                 <h4 className="font-semibold text-blue-700 mb-1">SP - São Paulo</h4>
                 <p className="text-muted-foreground text-xs">
-                  <strong>IPVA:</strong> Data única 22/04/2026 para caminhões. Carretas ISENTAS ✓<br/>
+                  <strong>IPVA:</strong> Não se aplica.<br/>
                   <strong>Licenciamento:</strong> Final 1-2: 31/jul | Final 3-5: 31/ago | Final 6-8: 30/set | Final 9-0: 30/nov
                 </p>
               </div>
@@ -707,6 +708,7 @@ function App() {
     const veiculosAtivosKanban = veiculos.filter(v => {
       if ((v.status_veiculo || 'ativo') === 'vendido') return false
       if (kanbanEstado && v.estado_veiculo !== kanbanEstado) return false
+      if (kanbanTipo === 'ipva' && v.estado_veiculo === 'SP') return false
       return true
     })
     const campo: 'status_ipva' | 'status_licenciamento' = kanbanTipo === 'ipva' ? 'status_ipva' : 'status_licenciamento'
@@ -906,6 +908,7 @@ function App() {
                       const finalPlaca = getFinalPlaca(veiculo.placa_veiculo)
                       const coresIPVA = getCorStatus(vencimento.statusIPVA)
                       const coresLic = getCorStatus(vencimento.statusLicenciamento)
+                      const possuiIPVA = veiculo.estado_veiculo !== 'SP'
                       const diasRelevantes = vencimento.isentoIPVA
                         ? vencimento.diasParaLicenciamento
                         : Math.min(vencimento.diasParaIPVA ?? Infinity, vencimento.diasParaLicenciamento)
@@ -966,8 +969,8 @@ function App() {
                           </div>
 
                           {/* IPVA & Licenciamento boxes */}
-                          <div className="grid grid-cols-2 gap-2 px-3 pt-2">
-                            <div className={`p-2 rounded-md border ${coresIPVA.bg} ${coresIPVA.border}`}>
+                          <div className={`grid gap-2 px-3 pt-2 ${possuiIPVA ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                            {possuiIPVA && <div className={`p-2 rounded-md border ${coresIPVA.bg} ${coresIPVA.border}`}>
                               <div className="flex items-center gap-1 mb-0.5">
                                 <FileText className={`h-3 w-3 ${coresIPVA.text}`} />
                                 <span className={`text-[10px] font-semibold ${coresIPVA.text}`}>IPVA</span>
@@ -984,7 +987,7 @@ function App() {
                                   </p>
                                 </>
                               )}
-                            </div>
+                            </div>}
                             <div className={`p-2 rounded-md border ${coresLic.bg} ${coresLic.border}`}>
                               <div className="flex items-center gap-1 mb-0.5">
                                 <Calendar className={`h-3 w-3 ${coresLic.text}`} />

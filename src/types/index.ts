@@ -103,10 +103,10 @@ export const REGRAS_IPVA: Record<Estado, {
   descricao: string
 }> = {
   SP: {
-    aliquotaCaminhao: 1.5,
-    parcelamento: 5,
-    mesVencimentoBase: 1, // Janeiro
-    descricao: 'IPVA: Data única 22/04/2026 para caminhões. Isento para carretas.'
+    aliquotaCaminhao: 0,
+    parcelamento: 0,
+    mesVencimentoBase: 0,
+    descricao: 'São Paulo: apenas licenciamento.'
   },
   PR: {
     aliquotaCaminhao: 1.0,

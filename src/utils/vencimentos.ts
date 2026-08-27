@@ -2,7 +2,7 @@
  * Utilitário para calcular datas de vencimento de IPVA e Licenciamento
  * Regras específicas por estado para carretas/caminhões - Ano 2026
  * 
- * IMPORTANTE: Em SC, PR e SP, carretas são ISENTAS de IPVA
+ * IMPORTANTE: Veículos de SP não possuem IPVA neste controle; apenas licenciamento.
  */
 
 export interface VencimentoInfo {
@@ -66,14 +66,11 @@ function determinarStatus(diasRestantes: number): 'pendente' | 'proximo' | 'venc
 
 /**
  * SP - São Paulo
- * IPVA: Data fixa 22 de abril de 2026 para todos os caminhões
- * Licenciamento: Calendário específico por final de placa
+ * Apenas licenciamento, com calendário específico por final de placa.
  */
-function calcularVencimentosSP(finalPlaca: number): { ipva: Date; licenciamento: Date; obs: string } {
-  const ipva = new Date(2026, 3, 22) // 22 de abril de 2026
-  
+function calcularVencimentosSP(finalPlaca: number): { ipva: null; licenciamento: Date; obs: string; isentoIPVA: boolean } {
   let licenciamento: Date
-  let obs = 'IPVA: Vencimento único em 22/04/2026 para caminhões.'
+  let obs = 'SP: Apenas licenciamento.'
   
   switch (finalPlaca) {
     case 1:
@@ -101,39 +98,6 @@ function calcularVencimentosSP(finalPlaca: number): { ipva: Date; licenciamento:
       break
   }
   
-  return { ipva, licenciamento, obs }
-}
-
-function calcularVencimentosSPCarreta(finalPlaca: number): { ipva: null; licenciamento: Date; obs: string; isentoIPVA: boolean } {
-  let licenciamento: Date
-  let obs = 'SP: Carretas ISENTAS de IPVA.'
-
-  switch (finalPlaca) {
-    case 1:
-    case 2:
-      licenciamento = new Date(2026, 6, 31) // 31/jul
-      obs += ` Licenciamento: Final ${finalPlaca} vence em 31/07.`
-      break
-    case 3:
-    case 4:
-    case 5:
-      licenciamento = new Date(2026, 7, 31) // 31/ago
-      obs += ` Licenciamento: Final ${finalPlaca} vence em 31/08.`
-      break
-    case 6:
-    case 7:
-    case 8:
-      licenciamento = new Date(2026, 8, 30) // 30/set
-      obs += ` Licenciamento: Final ${finalPlaca} vence em 30/09.`
-      break
-    case 9:
-    case 0:
-    default:
-      licenciamento = new Date(2026, 10, 30) // 30/nov
-      obs += ` Licenciamento: Final ${finalPlaca} vence em 30/11.`
-      break
-  }
-
   return { ipva: null, licenciamento, obs, isentoIPVA: true }
 }
 
@@ -272,19 +236,11 @@ export function calcularVencimentos(estado: string, placa: string, tipoVeiculo?:
   
   switch (estado.toUpperCase()) {
     case 'SP': {
-      const isCarreta = (tipoVeiculo || '').toLowerCase() === 'carreta'
-      if (isCarreta) {
-        const sp = calcularVencimentosSPCarreta(finalPlaca)
-        dataIPVA = sp.ipva
-        dataLicenciamento = sp.licenciamento
-        observacoes = sp.obs
-        isentoIPVA = sp.isentoIPVA
-      } else {
-        const sp = calcularVencimentosSP(finalPlaca)
-        dataIPVA = sp.ipva
-        dataLicenciamento = sp.licenciamento
-        observacoes = sp.obs
-      }
+      const sp = calcularVencimentosSP(finalPlaca)
+      dataIPVA = sp.ipva
+      dataLicenciamento = sp.licenciamento
+      observacoes = sp.obs
+      isentoIPVA = sp.isentoIPVA
       break
     }
     case 'GO': {

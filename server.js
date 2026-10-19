@@ -189,7 +189,12 @@ app.patch('/api/veiculos/:id/status', async (req, res) => {
       return res.status(400).json({ error: 'Status inválido. Use: ativo ou vendido' })
     }
     const { rows } = await pool.query(
-      'UPDATE veiculos_rows SET status_veiculo = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
+      `UPDATE veiculos_rows
+       SET status_veiculo = $1,
+           status_ipva = CASE WHEN $1 = 'vendido' THEN 'pago' ELSE status_ipva END,
+           status_licenciamento = CASE WHEN $1 = 'vendido' THEN 'pago' ELSE status_licenciamento END,
+           updated_at = NOW()
+       WHERE id = $2 RETURNING *`,
       [status_veiculo, req.params.id]
     )
     if (rows.length === 0) return res.status(404).json({ error: 'Veículo não encontrado' })

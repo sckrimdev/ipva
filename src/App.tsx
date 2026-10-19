@@ -114,10 +114,11 @@ function todosPagamentosResolvidos(vencimento: VencimentoInfo): boolean {
 interface VeiculoCardCompletoProps {
   veiculo: VeiculoComVencimento
   isUpdating?: boolean
+  onMarkAsSold: (id: string, currentStatus: string) => void
   onMarkAsPaid: (id: string, campo: 'status_ipva' | 'status_licenciamento') => void
 }
 
-function VeiculoCardCompleto({ veiculo, isUpdating = false, onMarkAsPaid }: VeiculoCardCompletoProps) {
+function VeiculoCardCompleto({ veiculo, isUpdating = false, onMarkAsPaid, onMarkAsSold }: VeiculoCardCompletoProps) {
   const info = ESTADO_INFO[veiculo.estado_veiculo] || { nome: veiculo.estado_veiculo, cor: 'text-slate-700', bgColor: 'bg-slate-100' }
   const { vencimento } = veiculo
   const finalPlaca = getFinalPlaca(veiculo.placa_veiculo)
@@ -258,6 +259,18 @@ function VeiculoCardCompleto({ veiculo, isUpdating = false, onMarkAsPaid }: Veic
           </div>
         </div>
         
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={isUpdating}
+          onClick={() => onMarkAsSold(veiculo.id, veiculo.status_veiculo)}
+          className="mt-3 w-full gap-2 text-red-600 border-red-200 hover:bg-red-50"
+          title="Registra IPVA e licenciamento como pagos e retira o veículo das pendências"
+        >
+          {isUpdating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Ban className="h-4 w-4" />}
+          Marcar como vendido
+        </Button>
+
         {/* Observações */}
         <div className="mt-3 p-2 bg-slate-50 rounded-lg">
           <p className="text-xs text-muted-foreground flex items-start gap-1.5">
@@ -656,14 +669,15 @@ function App() {
     const newStatus = (currentStatus || 'ativo') === 'ativo' ? 'vendido' : 'ativo'
     setUpdatingId(id)
     try {
-      await veiculosService.updateStatus(id, newStatus)
-      await refetch()
+      const atualizado = await veiculosService.updateStatus(id, newStatus)
+      updateVeiculoLocal(atualizado)
     } catch (err) {
       console.error('Erro ao atualizar status:', err)
+      window.alert('Não foi possível atualizar o veículo. Tente novamente.')
     } finally {
       setUpdatingId(null)
     }
-  }, [refetch])
+  }, [updateVeiculoLocal])
 
   const handleMovePagamento = useCallback(async (id: string, campo: 'status_ipva' | 'status_licenciamento', novoStatus: string) => {
     setKanbanUpdatingId(id)
@@ -1058,6 +1072,20 @@ function App() {
                             </div>
                           )}
 
+                          <div className="px-3 pt-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={isUpdating || updatingId === veiculo.id}
+                              onClick={() => handleToggleStatus(veiculo.id, veiculo.status_veiculo)}
+                              className="w-full gap-2 text-red-600 border-red-200 hover:bg-red-50"
+                              title="Registra IPVA e licenciamento como pagos e retira o veículo das pendências"
+                            >
+                              {updatingId === veiculo.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Ban className="h-3.5 w-3.5" />}
+                              Marcar como vendido
+                            </Button>
+                          </div>
+
                           {/* Move buttons */}
                           <div className="p-3 pt-2 space-y-1.5">
                             {coluna.id !== 'pago' && (
@@ -1170,7 +1198,7 @@ function App() {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-slate-900">Gerenciar Frota</h1>
-              <p className="text-muted-foreground">Gerencie o status dos veículos da frota</p>
+              <p className="text-muted-foreground">Ao marcar como vendido, IPVA e licenciamento ficam pagos e o veículo sai das pendências. Reativar mantém os pagamentos.</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -1416,8 +1444,9 @@ function App() {
                   <VeiculoCardCompleto
                     key={veiculo.id}
                     veiculo={veiculo}
-                    isUpdating={kanbanUpdatingId === veiculo.id}
+                    isUpdating={kanbanUpdatingId === veiculo.id || updatingId === veiculo.id}
                     onMarkAsPaid={handleCardMarkAsPaid}
+                    onMarkAsSold={handleToggleStatus}
                   />
                 ))}
               </div>
@@ -1557,8 +1586,9 @@ function App() {
                     <VeiculoCardCompleto
                       key={veiculo.id}
                       veiculo={veiculo}
-                      isUpdating={kanbanUpdatingId === veiculo.id}
+                      isUpdating={kanbanUpdatingId === veiculo.id || updatingId === veiculo.id}
                       onMarkAsPaid={handleCardMarkAsPaid}
+                      onMarkAsSold={handleToggleStatus}
                     />
                   ))}
                 </div>

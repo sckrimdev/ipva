@@ -190,9 +190,9 @@ app.patch('/api/veiculos/:id/status', async (req, res) => {
     }
     const { rows } = await pool.query(
       `UPDATE veiculos_rows
-       SET status_veiculo = $1,
-           status_ipva = CASE WHEN $1 = 'vendido' THEN 'pago' ELSE status_ipva END,
-           status_licenciamento = CASE WHEN $1 = 'vendido' THEN 'pago' ELSE status_licenciamento END,
+       SET status_veiculo = $1::text,
+           status_ipva = CASE WHEN $1::text = 'vendido' THEN 'pago' ELSE status_ipva END,
+           status_licenciamento = CASE WHEN $1::text = 'vendido' THEN 'pago' ELSE status_licenciamento END,
            updated_at = NOW()
        WHERE id = $2 RETURNING *`,
       [status_veiculo, req.params.id]
